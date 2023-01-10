@@ -1,14 +1,106 @@
-use std::fs::{read_dir, ReadDir};
+use std::fs::{copy, create_dir, read_dir};
 use std::io::Error;
+use std::thread::{self, JoinHandle};
 
-struct FileInfo {
-    pub path: String,
+struct CopyInfo {
+    pub src_path: String,
+    pub dst_path: String,
     pub size: u64,
 }
 
-struct SplitFileInfo {
+struct SplitCopyInfo {
     pub size: u64,
-    pub file_list: Vec<FileInfo>,
+    pub copy_info_list: Vec<CopyInfo>,
+}
+
+impl SplitCopyInfo {
+    pub fn new() -> SplitCopyInfo {
+        SplitCopyInfo {
+            size: 0,
+            copy_info_list: Vec::<CopyInfo>::new(),
+        }
+    }
+}
+
+fn scan_source_prep_dest(
+    src_dir_path: &str,
+    dst_dir_path: &str,
+    copy_info_list: &mut Vec<CopyInfo>,
+) -> Result<(), Error> {
+    // Create dir at dest
+    create_dir(dst_dir_path)?;
+
+    // Scan src path
+    for entry in read_dir(src_dir_path)? {
+        let entry = entry?;
+        let meta = entry.metadata()?;
+
+        let src_file_path = entry
+            .path()
+            .as_os_str()
+            .to_str()
+            .expect("invalid file name")
+            .to_string();
+        let file_name = entry
+            .file_name()
+            .to_str()
+            .expect("invalid file name")
+            .to_string();
+        let dst_file_path = format!("{}/{}", dst_dir_path, file_name);
+
+        if meta.is_dir() {
+            // Recurse thru dirs
+            scan_source_prep_dest(&src_file_path, &dst_file_path, copy_info_list)?;
+        } else {
+            // Memoize files
+            copy_info_list.push(CopyInfo {
+                src_path: src_file_path.to_string(),
+                dst_path: dst_file_path,
+                size: meta.len(),
+            });
+        }
+    }
+
+    Ok(())
+}
+
+// Given one copy_info_list, split it into n split_copy_info structs where each
+// one has roughly the same number of bytes in it.
+fn balanced_split(copy_info_list: Vec<CopyInfo>, n: i32) -> Vec<SplitCopyInfo> {
+    // Create the output struct
+    let mut split_copy_info_list = Vec::<SplitCopyInfo>::new();
+    for _ in 0..n {
+        split_copy_info_list.push(SplitCopyInfo::new());
+    }
+
+    for file_info in copy_info_list {
+        // find the bucket with the least bytes in it
+        let (mut index, mut min_size) = (0 as u64, u64::MAX);
+        let mut i = 0;
+        for file_info in &split_copy_info_list {
+            if file_info.size < min_size {
+                (index, min_size) = (i, file_info.size);
+            }
+            i += 1;
+        }
+
+        // Put file_info into that bucket
+        let split_file_info = split_copy_info_list
+            .get_mut(index as usize)
+            .expect("index out of bounds.");
+        split_file_info.size += file_info.size;
+        split_file_info.copy_info_list.push(file_info);
+    }
+
+    split_copy_info_list
+}
+
+fn copy_file_list(split_file_info: SplitCopyInfo) {
+    for file_info in split_file_info.copy_info_list {
+        if let Err(err) = copy(file_info.src_path, file_info.dst_path) {
+            println!("Err: {}", err);
+        }
+    }
 }
 
 fn bytes_to_human_readable(bytes: u64) -> String {
@@ -31,76 +123,39 @@ fn bytes_to_human_readable(bytes: u64) -> String {
     return format!("{:.3} {}", bytes, units);
 }
 
-fn scan_dir(dir_path: &str, file_list: &mut Vec<FileInfo>) -> Result<(), Error> {
-    for entry in read_dir(dir_path)? {
-        let entry = entry?;
-        let meta = entry.metadata()?;
-
-        if let Some(dir_path) = entry.path().as_os_str().to_str() {
-            if meta.is_dir() {
-                scan_dir(dir_path, file_list);
-            } else {
-                file_list.push(FileInfo {
-                    path: dir_path.to_string(),
-                    size: meta.len(),
-                });
-            }
-        }
+fn bytes_in_file_list(copy_info_list: &Vec<CopyInfo>) -> u64 {
+    let mut byte_count = 0;
+    for copy_info in copy_info_list {
+        byte_count += copy_info.size;
     }
 
-    Ok(())
-}
-
-fn balanced_split(file_info_list: Vec<FileInfo>, n: i32) -> Vec<SplitFileInfo> {
-    let mut split_file_info_list = Vec::<SplitFileInfo>::new();
-    for i in 0..n {
-        split_file_info_list.push(SplitFileInfo {
-            size: 0,
-            file_list: Vec::<FileInfo>::new(),
-        });
-    }
-
-    for file_info in file_info_list {
-        // find the smallest bucket
-        let (mut index, mut min_size) = (0 as u64, u64::MAX);
-        let mut i = 0;
-        for file_info in &split_file_info_list {
-            if file_info.size < min_size {
-                (index, min_size) = (i, file_info.size);
-            }
-            i += 1;
-        }
-
-        let split_file_info = split_file_info_list
-            .get_mut(index as usize)
-            .expect("index out of bounds.");
-        split_file_info.size += file_info.size;
-        split_file_info.file_list.push(file_info);
-    }
-
-    split_file_info_list
+    byte_count
 }
 
 fn main() {
-    let mut file_list = Vec::<FileInfo>::new();
-    if let Err(err) = scan_dir("/Users/davidvernon/.cargo", &mut file_list) {
+    let mut copy_info_list = Vec::<CopyInfo>::new();
+    if let Err(err) = scan_source_prep_dest(
+        "/Users/davidvernon/.rustup",
+        "/Users/davidvernon/rustup_copy",
+        &mut copy_info_list,
+    ) {
         println!("{}", err);
     }
+    let bytes_copied = bytes_to_human_readable(bytes_in_file_list(&copy_info_list));
 
-    let mut total_size = 0;
-    let count = file_list.len();
-    for file in &file_list {
-        total_size += file.size;
-        println!("{}: {}", file.size, &file.path);
-    }
-    println!("{} files - {}", count, bytes_to_human_readable(total_size));
+    let split_file_info_list = balanced_split(copy_info_list, 12);
 
-    let split_file_info = balanced_split(file_list, 6);
-    for split_file_info in split_file_info {
-        println!(
-            "{}: {}",
-            bytes_to_human_readable(split_file_info.size),
-            split_file_info.file_list.len()
-        )
+    let mut join_handle_list = Vec::<JoinHandle<()>>::new();
+    for split_file_info in split_file_info_list {
+        let join_handle = thread::spawn(|| {
+            copy_file_list(split_file_info);
+        });
+        join_handle_list.push(join_handle);
     }
+
+    for join_handle in join_handle_list {
+        let _ = join_handle.join();
+    }
+
+    println!("{} copied.", bytes_copied);
 }
