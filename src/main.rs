@@ -1,10 +1,12 @@
-use std::fs::{copy, create_dir, read_dir};
+use std::fs::{copy, create_dir, read_dir, read_link};
 use std::io::Error;
+use std::os::unix::fs::symlink;
 use std::thread::{self, JoinHandle};
 
 struct CopyInfo {
     pub src_path: String,
     pub dst_path: String,
+    pub is_symlink: bool,
     pub size: u64,
 }
 
@@ -56,6 +58,7 @@ fn scan_source_prep_dest(
             copy_info_list.push(CopyInfo {
                 src_path: src_file_path.to_string(),
                 dst_path: dst_file_path,
+                is_symlink: meta.is_symlink(),
                 size: meta.len(),
             });
         }
@@ -96,9 +99,22 @@ fn balanced_split(copy_info_list: Vec<CopyInfo>, n: i32) -> Vec<SplitCopyInfo> {
 }
 
 fn copy_file_list(split_file_info: SplitCopyInfo) {
-    for file_info in split_file_info.copy_info_list {
-        if let Err(err) = copy(file_info.src_path, file_info.dst_path) {
-            println!("Err: {}", err);
+    for copy_info in split_file_info.copy_info_list {
+        if !copy_info.is_symlink {
+            // File
+            if let Err(err) = copy(copy_info.src_path, copy_info.dst_path) {
+                println!("Err: {}", err);
+            }
+        } else {
+            // SymLink
+            match read_link(copy_info.src_path) {
+                Ok(original) => {
+                    if let Err(err) = symlink(original, copy_info.dst_path) {
+                        println!("Err: {}", err);
+                    }
+                }
+                Err(err) => println!("Err: {}", err),
+            }
         }
     }
 }
