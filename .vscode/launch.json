@@ -7,34 +7,37 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'ffcp'",
+            "name": "Debug executable 'cpr'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=ffcp",
-                    "--package=ffcp"
+                    "--bin=cpr",
+                    "--package=cpr",
                 ],
                 "filter": {
-                    "name": "ffcp",
+                    "name": "cpr",
                     "kind": "bin"
                 }
             },
-            "args": [],
+            "args": [
+                "~/.rustup",
+                "~/rustup_copy"
+            ],
             "cwd": "${workspaceFolder}"
         },
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'ffcp'",
+            "name": "Debug unit tests in executable 'cpr'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=ffcp",
-                    "--package=ffcp"
+                    "--bin=cpr",
+                    "--package=cpr"
                 ],
                 "filter": {
-                    "name": "ffcp",
+                    "name": "cpr",
                     "kind": "bin"
                 }
             },
