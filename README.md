@@ -13,6 +13,7 @@ $ cpr ~/big-dir ~/big-dir-copy
 
 ## Install 
 ```
+Coming soon...
 ```
 
 ## Build from Source
