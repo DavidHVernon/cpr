@@ -13,7 +13,7 @@ $ cpr ~/big-dir ~/big-dir-copy
 
 ## Install 
 ### Linux, Mac, WSL
-Run the following from a terminal.
+Run the following from a terminal to install cpr in /usr/local/bin. (On some systems you might need to sudo this command.)
 ```
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/DavidHVernon/cpr/master/install.sh)"
 ```
