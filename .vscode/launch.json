@@ -20,8 +20,8 @@
                 }
             },
             "args": [
-                "~/.rustup",
-                "~/rustup_copy"
+                "~/src",
+                "/src-copy"
             ],
             "cwd": "${workspaceFolder}"
         },
