@@ -12,6 +12,12 @@ $ cpr ~/big-dir ~/big-dir-copy
 ```
 
 ## Install 
+### Linux, Mac, WSL
+Run the following from a terminal.
+```
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/DavidHVernon/cpr/master/install.sh)"
+```
+### Windows
 ```
 Coming soon...
 ```
