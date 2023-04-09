@@ -29,6 +29,7 @@ fn validate_or_exit(file_path: Option<String>, exists: bool) -> String {
             print_error_and_exit("Could not find home directory.");
         }
         if exists {
+            // Check that the path exists and is a dir.
             if let Ok(meta_data) = metadata(file_path.clone()) {
                 if meta_data.is_dir() {
                     return file_path;
@@ -36,6 +37,7 @@ fn validate_or_exit(file_path: Option<String>, exists: bool) -> String {
             }
             print_error_and_exit(&format!("Not a directory: {}.", file_path));
         } else {
+            // Check that the path does not exist.
             if !Path::new(&file_path).exists() {
                 return file_path;
             } else {
